@@ -1,0 +1,85 @@
+name: signalproof
+
+services:
+  db:
+    image: timescale/timescaledb:2.17.2-pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-signalproof}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-signalproof}
+      POSTGRES_DB: ${POSTGRES_DB:-signalproof}
+    ports: ["5432:5432"]
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+      - ./backend/db/migrations:/migrations:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-signalproof}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "no", "--save", ""]
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: ./backend
+    env_file: [.env]
+    environment:
+      SP_ROLE: api
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    ports: ["8000:8000"]
+    volumes: ["./backend:/srv"]
+    command: >
+      sh -c "python -m app.db_bootstrap &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  ingest:
+    build: ./backend
+    env_file: [.env]
+    environment:
+      SP_ROLE: ingest
+    depends_on:
+      api: {condition: service_started}
+    volumes: ["./backend:/srv"]
+    command: ["python", "-m", "app.workers.ingest"]
+
+  engine:
+    build: ./backend
+    env_file: [.env]
+    environment:
+      SP_ROLE: engine
+    depends_on:
+      api: {condition: service_started}
+    volumes: ["./backend:/srv"]
+    command: ["python", "-m", "app.workers.engine_worker"]
+
+  lifecycle:
+    build: ./backend
+    env_file: [.env]
+    environment:
+      SP_ROLE: lifecycle
+    depends_on:
+      api: {condition: service_started}
+    volumes: ["./backend:/srv"]
+    command: ["python", "-m", "app.workers.lifecycle_worker"]
+
+  web:
+    build: ./frontend
+    env_file: [.env]
+    depends_on:
+      api: {condition: service_started}
+    ports: ["3000:3000"]
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+volumes:
+  dbdata:

@@ -1,0 +1,113 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-base-900 text-ink-100 font-sans antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04';
+  }
+
+  /* Numbers in a trading terminal must not reflow as they tick. */
+  .num {
+    @apply font-mono tabular-nums;
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    @apply bg-long/25;
+  }
+
+  :focus-visible {
+    outline: 2px solid #3DD68C;
+    outline-offset: 2px;
+  }
+
+  ::-webkit-scrollbar {
+    width: 9px;
+    height: 9px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-base-900;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-base-600 rounded-sm;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-base-500;
+  }
+}
+
+@layer components {
+  /* The terminal's structural unit. Not a card: no shadow, no float — a panel
+     with a labelled header rule, the way a trading desk surface reads. */
+  .panel {
+    @apply bg-base-800 border border-edge rounded-panel;
+  }
+  .panel-head {
+    @apply flex items-center justify-between gap-3 px-3 h-9 border-b border-edge;
+  }
+  .panel-title {
+    @apply text-tick font-medium text-ink-200 tracking-wide;
+  }
+  .panel-body {
+    @apply p-3;
+  }
+
+  .hairline {
+    @apply border-t border-edge;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 h-9 px-3.5 rounded-panel
+           text-sm font-medium transition-colors disabled:opacity-40
+           disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-long text-base-900 hover:bg-long/90;
+  }
+  .btn-ghost {
+    @apply btn border border-edge text-ink-200 hover:bg-base-700 hover:text-ink-100;
+  }
+
+  .field {
+    @apply w-full h-10 px-3 bg-base-900 border border-edge rounded-panel text-sm
+           text-ink-100 placeholder:text-ink-400 focus:border-long/60 outline-none;
+  }
+
+  .th {
+    @apply text-micro font-medium text-ink-400 px-3 py-2 text-left whitespace-nowrap;
+  }
+  .td {
+    @apply px-3 py-2 text-tick whitespace-nowrap border-t border-edge/60;
+  }
+
+  /* Slow, low-amplitude. A terminal that throbs is a terminal you stop reading. */
+  .live-dot {
+    @apply inline-block w-1.5 h-1.5 rounded-full bg-long;
+    animation: pulse-soft 2.6s ease-in-out infinite;
+  }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
