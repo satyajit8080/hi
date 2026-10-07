@@ -51,7 +51,11 @@ async def run() -> None:
                     )
                 continue
             log.info("applying %s", path.name)
-            await conn.execute(text(sql))
+            # A migration file holds many statements. asyncpg prepares anything
+            # sent with bind parameters, and a prepared statement can carry only
+            # one command, so run the file over the driver's simple-query path.
+            raw = await conn.get_raw_connection()
+            await raw.driver_connection.execute(sql)
             await conn.execute(
                 text("INSERT INTO schema_migrations (filename, checksum) VALUES (:f, :c)"),
                 {"f": path.name, "c": checksum},

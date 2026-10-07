@@ -162,7 +162,7 @@ async def load_open_positions(session: AsyncSession, symbol: str | None = None) 
             FROM signals s
             JOIN signal_state st ON st.signal_id = s.signal_id
             WHERE st.outcome IS NULL
-              AND (:symbol::text IS NULL OR s.symbol = :symbol)
+              AND (CAST(:symbol AS text) IS NULL OR s.symbol = :symbol)
             ORDER BY s.published_at
             """
         ),

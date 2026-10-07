@@ -4,13 +4,6 @@
 
 CREATE TABLE IF NOT EXISTS users (
     id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    email          citext_or_text_placeholder text,   -- replaced below
-    created_at     timestamptz NOT NULL DEFAULT now()
-);
-DROP TABLE IF EXISTS users;
-
-CREATE TABLE IF NOT EXISTS users (
-    id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     email          text NOT NULL,
     email_lower    text GENERATED ALWAYS AS (lower(email)) STORED,
     password_hash  text NOT NULL,

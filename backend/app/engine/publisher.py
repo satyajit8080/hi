@@ -95,7 +95,7 @@ async def _duplicate_exists(
             WHERE s.symbol = :symbol
               AND s.timeframe = :timeframe
               AND s.direction = :direction
-              AND s.features->'setup_hash' = to_jsonb(:setup_hash::text)
+              AND s.features->'setup_hash' = to_jsonb(CAST(:setup_hash AS text))
               AND st.outcome IS NULL
             LIMIT 1
             """

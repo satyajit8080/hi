@@ -71,7 +71,7 @@ async def live_signals(
             SELECT {SIGNAL_COLUMNS}
             FROM signals s JOIN signal_state st ON st.signal_id = s.signal_id
             WHERE st.outcome IS NULL
-              AND (:symbol::text IS NULL OR s.symbol = :symbol)
+              AND (CAST(:symbol AS text) IS NULL OR s.symbol = :symbol)
               AND (:all_symbols OR s.symbol = ANY(:symbols))
             ORDER BY s.published_at DESC
             LIMIT 60
@@ -112,11 +112,11 @@ async def signal_history(
             f"""
             SELECT {SIGNAL_COLUMNS}
             FROM signals s JOIN signal_state st ON st.signal_id = s.signal_id
-            WHERE (:symbol::text IS NULL OR s.symbol = :symbol)
-              AND (:timeframe::text IS NULL OR s.timeframe = :timeframe)
-              AND (:outcome::text IS NULL OR st.outcome = :outcome)
-              AND (:direction::text IS NULL OR s.direction = :direction)
-              AND (:floor::timestamptz IS NULL OR s.published_at >= :floor)
+            WHERE (CAST(:symbol AS text) IS NULL OR s.symbol = :symbol)
+              AND (CAST(:timeframe AS text) IS NULL OR s.timeframe = :timeframe)
+              AND (CAST(:outcome AS text) IS NULL OR st.outcome = :outcome)
+              AND (CAST(:direction AS text) IS NULL OR s.direction = :direction)
+              AND (CAST(:floor AS timestamptz) IS NULL OR s.published_at >= :floor)
             ORDER BY s.published_at DESC
             LIMIT :limit OFFSET :offset
             """
@@ -336,8 +336,8 @@ async def export_csv(
                    st.mae_pct, st.close_price, st.closed_at, st.close_reason,
                    st.pnl_pct, st.r_multiple, s.is_simulated, s.row_hash, s.prev_hash
             FROM signals s LEFT JOIN signal_state st ON st.signal_id = s.signal_id
-            WHERE (:symbol::text IS NULL OR s.symbol = :symbol)
-              AND (:since::timestamptz IS NULL OR s.published_at >= :since)
+            WHERE (CAST(:symbol AS text) IS NULL OR s.symbol = :symbol)
+              AND (CAST(:since AS timestamptz) IS NULL OR s.published_at >= :since)
             ORDER BY s.seq
             """
         ),
