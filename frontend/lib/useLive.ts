@@ -26,19 +26,25 @@ export function useLive(): LiveState {
   });
   const socket = useRef<WebSocket | null>(null);
   const backoff = useRef(1000);
-  const closed = useRef(false);
 
   useEffect(() => {
-    closed.current = false;
+    // Per-effect flag: a ref shared across mounts would be reset by the next
+    // mount before the old socket's onclose fires, and that socket would reconnect.
+    let closed = false;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+
+    const schedule = () => {
+      retry = setTimeout(connect, backoff.current);
+      backoff.current = Math.min(backoff.current * 2, 20000);
+    };
 
     const connect = () => {
-      if (closed.current) return;
+      if (closed) return;
       let ws: WebSocket;
       try {
         ws = new WebSocket(WS_URL);
       } catch {
-        setTimeout(connect, backoff.current);
-        backoff.current = Math.min(backoff.current * 2, 20000);
+        schedule();
         return;
       }
       socket.current = ws;
@@ -66,10 +72,9 @@ export function useLive(): LiveState {
       };
 
       ws.onclose = () => {
+        if (closed) return;
         setState((s) => ({ ...s, connected: false }));
-        if (closed.current) return;
-        setTimeout(connect, backoff.current);
-        backoff.current = Math.min(backoff.current * 2, 20000);
+        schedule();
       };
 
       ws.onerror = () => ws.close();
@@ -77,7 +82,8 @@ export function useLive(): LiveState {
 
     connect();
     return () => {
-      closed.current = true;
+      closed = true;
+      clearTimeout(retry);
       socket.current?.close();
     };
   }, []);

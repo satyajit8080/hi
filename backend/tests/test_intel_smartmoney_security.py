@@ -158,3 +158,32 @@ def test_tampered_token_is_rejected():
     token = create_access_token("user-1", "free")
     with pytest.raises(Exception):
         decode_token(token[:-3] + "abc", "access")
+
+
+def test_webhook_signature_must_match_the_body():
+    import hashlib
+    import hmac
+
+    from app.services.subscriptions import BillingProvider
+
+    billing = BillingProvider("stripe")
+    body = b'{"id":"evt_1","type":"checkout.session.completed"}'
+    good = hmac.new(b"whsec", body, hashlib.sha256).hexdigest()
+    assert billing.verify_webhook("stripe", body, good, "whsec")
+    assert billing.verify_webhook("stripe", body, f"t=1,v1={good}", "whsec")
+    assert not billing.verify_webhook("stripe", body, "forged", "whsec")
+    assert not billing.verify_webhook("stripe", body, "t=1,v1=forged", "whsec")
+    assert not billing.verify_webhook("stripe", body, "", "whsec")
+
+
+def test_raw_sql_bind_params_are_all_bound():
+    """`:name::type` is not a bind in SQLAlchemy text(); it would reach Postgres verbatim."""
+    import re
+    from pathlib import Path
+
+    offenders = []
+    for path in Path(__file__).resolve().parents[1].joinpath("app").rglob("*.py"):
+        for n, line in enumerate(path.read_text().splitlines(), 1):
+            if re.search(r"(?<![:\w]):[a-z_]+::", line):
+                offenders.append(f"{path.name}:{n}")
+    assert offenders == []

@@ -17,6 +17,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.config import settings
 from app.db import get_redis
+from app.services.subscriptions import allowed_symbols, redact_for_tier
 
 router = APIRouter(tags=["ws"])
 
@@ -62,7 +63,14 @@ async def market_socket(websocket: WebSocket) -> None:
 
                 signals_raw = await redis.get("sp:signals:live")
                 if signals_raw:
-                    payload["signals"] = json.loads(signals_raw)
+                    # The socket is unauthenticated, so it gets the free tier's view:
+                    # allowed symbols only, with levels locked until the delay passes.
+                    free_symbols = allowed_symbols("free")
+                    payload["signals"] = [
+                        redact_for_tier(s, "free")
+                        for s in json.loads(signals_raw)
+                        if free_symbols is None or s.get("symbol") in free_symbols
+                    ]
 
                 await websocket.send_json(payload)
                 await asyncio.wait({reader_task}, timeout=interval)

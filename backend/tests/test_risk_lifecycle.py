@@ -137,3 +137,13 @@ def test_expiry_without_a_target_is_not_a_win():
 def test_pnl_is_signed_correctly_for_shorts():
     update = advance(position("SHORT"), bar(high=99.0, low=84.0))
     assert update.pnl_pct is not None and update.pnl_pct > 0
+
+
+def test_free_tier_redaction_locks_fresh_levels():
+    from app.services.subscriptions import redact_for_tier
+
+    fresh = {"published_at": datetime.now(timezone.utc).isoformat(), "entry": 1.0, "stop_loss": 0.9,
+             "tp1": 1.1, "tp2": 1.2, "tp3": 1.3}
+    out = redact_for_tier(fresh, "free")
+    assert out["locked"] and out["entry"] is None and out["tp3"] is None
+    assert redact_for_tier(fresh, "pro")["entry"] == 1.0

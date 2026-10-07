@@ -27,6 +27,11 @@ CYCLE_SECONDS = 3600
 
 
 async def anchor_day(session, day: date) -> dict | None:
+    existing = await session.execute(text("SELECT 1 FROM anchors WHERE day = :day"), {"day": day})
+    if existing.first():
+        # Already anchored; don't resubmit the same root to the calendar every cycle.
+        return None
+
     rows = await session.execute(
         text(
             """

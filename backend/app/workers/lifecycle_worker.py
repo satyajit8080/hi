@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 
 from app.config import settings
 from app.db import SessionLocal, close_connections
-from app.engine.lifecycle import Bar, advance, apply_update, load_open_positions
+from app.engine.lifecycle import Bar, advance, apply_update, load_open_positions, save_excursions
 from app.market.adapters.binance import BinanceAdapter
 from app.market.adapters.replay import ReplayAdapter
 from app.services import alerts
@@ -62,7 +62,13 @@ class LifecycleWorker:
                 ]
 
                 for pos in positions:
-                    for bar in bars:
+                    # Only bars that opened after publication. Earlier bars contain
+                    # prices from before the signal existed and must not resolve it.
+                    live_bars = [
+                        b for b in bars if pos.published_at is None or b.ts >= pos.published_at
+                    ]
+                    closed = False
+                    for bar in live_bars:
                         update = advance(pos, bar)
                         if not update.events:
                             # Still record excursion drift so MFE/MAE stay honest.
@@ -79,7 +85,10 @@ class LifecycleWorker:
                             pos.signal_id[:8], update.status, update.close_reason or "in progress",
                         )
                         if update.outcome:
+                            closed = True
                             break
+                    if not closed and live_bars:
+                        await save_excursions(session, pos)
 
             result = await alerts.flush(session)
             if result["processed"]:

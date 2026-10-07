@@ -156,7 +156,8 @@ class BillingProvider:
         if not secret or not signature:
             return False
         digest = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
-        candidates = [digest]
+        # Compare against what the caller sent, never against our own digest.
+        candidates = [signature.strip()]
         if "," in signature:  # Stripe-style "t=...,v1=..."
             for part in signature.split(","):
                 if "=" in part:

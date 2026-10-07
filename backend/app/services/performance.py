@@ -191,9 +191,9 @@ async def fetch_closed(
                    calibrated_winrate, outcome, pnl_pct, r_multiple, mfe_pct, mae_pct,
                    published_at, closed_at, close_reason, is_simulated, strategy_version
             FROM v_closed_signals
-            WHERE (:since::timestamptz IS NULL OR closed_at >= :since)
-              AND (:symbol::text IS NULL OR symbol = :symbol)
-              AND (:timeframe::text IS NULL OR timeframe = :timeframe)
+            WHERE (CAST(:since AS timestamptz) IS NULL OR closed_at >= :since)
+              AND (CAST(:symbol AS text) IS NULL OR symbol = :symbol)
+              AND (CAST(:timeframe AS text) IS NULL OR timeframe = :timeframe)
               AND (:include_sim OR NOT is_simulated)
             ORDER BY closed_at
             """

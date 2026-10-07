@@ -245,13 +245,15 @@ async def flush(session: AsyncSession, limit: int = 200) -> dict:
             text(
                 """
                 UPDATE alert_deliveries
-                   SET status = :status, sent_at = CASE WHEN :ok THEN now() ELSE sent_at END,
+                   SET status = CASE WHEN :ok THEN 'sent'
+                                     WHEN attempts + 1 >= 3 THEN 'failed'
+                                     ELSE 'queued' END,
+                       sent_at = CASE WHEN :ok THEN now() ELSE sent_at END,
                        attempts = attempts + 1, error = :error
                  WHERE signal_id = :sid AND user_id = :uid AND channel = :channel
                 """
             ),
             {
-                "status": "sent" if ok else "failed",
                 "ok": ok,
                 "error": err,
                 "sid": item["signal_id"],

@@ -50,6 +50,7 @@ class SignalPosition:
     tp_hits: int
     mfe_pct: float
     mae_pct: float
+    published_at: datetime | None = None
 
 
 @dataclass(slots=True)
@@ -158,11 +159,12 @@ async def load_open_positions(session: AsyncSession, symbol: str | None = None) 
         text(
             """
             SELECT s.signal_id, s.direction, s.entry, s.stop_loss, s.tp1, s.tp2, s.tp3,
-                   s.expires_at, st.status, st.tp_hits, st.mfe_pct, st.mae_pct, s.symbol
+                   s.expires_at, st.status, st.tp_hits, st.mfe_pct, st.mae_pct, s.symbol,
+                   s.published_at
             FROM signals s
             JOIN signal_state st ON st.signal_id = s.signal_id
             WHERE st.outcome IS NULL
-              AND (:symbol::text IS NULL OR s.symbol = :symbol)
+              AND (CAST(:symbol AS text) IS NULL OR s.symbol = :symbol)
             ORDER BY s.published_at
             """
         ),
@@ -182,6 +184,7 @@ async def load_open_positions(session: AsyncSession, symbol: str | None = None) 
             tp_hits=int(r.tp_hits),
             mfe_pct=float(r.mfe_pct) / 100.0,
             mae_pct=float(r.mae_pct) / 100.0,
+            published_at=r.published_at,
         )
         for r in rows
     ]
@@ -230,6 +233,20 @@ async def apply_update(session: AsyncSession, pos: SignalPosition, upd: Lifecycl
             "r_mult": upd.r_multiple,
             "ts": bar.ts,
         },
+    )
+
+
+async def save_excursions(session: AsyncSession, pos: SignalPosition) -> None:
+    """Persist MFE/MAE drift for a signal that is still open."""
+    await session.execute(
+        text(
+            """
+            UPDATE signal_state
+               SET mfe_pct = :mfe, mae_pct = :mae, updated_at = now()
+             WHERE signal_id = :sid AND outcome IS NULL
+            """
+        ),
+        {"sid": pos.signal_id, "mfe": pos.mfe_pct * 100.0, "mae": pos.mae_pct * 100.0},
     )
 
 

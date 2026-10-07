@@ -29,17 +29,75 @@ export class ApiError extends Error {
   }
 }
 
+function tokenExpired(token: string, skewSeconds = 30): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    return typeof payload.exp === "number" && payload.exp - skewSeconds <= Date.now() / 1000;
+  } catch {
+    return false;
+  }
+}
+
+let refreshing: Promise<string | null> | null = null;
+
+/** Exchange the stored refresh token for a new pair. Concurrent callers share one request. */
+function refreshAccessToken(): Promise<string | null> {
+  if (refreshing) return refreshing;
+  refreshing = (async () => {
+    const refresh = typeof window === "undefined" ? null : window.localStorage.getItem(REFRESH_KEY);
+    if (!refresh) return null;
+    try {
+      const res = await fetch(`${API}/v1/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: refresh }),
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        if (res.status === 401) clearTokens();
+        return null;
+      }
+      const body = await res.json();
+      setTokens(body.access_token, body.refresh_token);
+      return body.access_token as string;
+    } catch {
+      return null;
+    }
+  })().finally(() => {
+    refreshing = null;
+  });
+  return refreshing;
+}
+
+function errorMessage(body: any, status: number): string {
+  const detail = body?.detail ?? body?.message;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail) && detail[0]?.msg) return String(detail[0].msg);
+  return `Request failed (${status}).`;
+}
+
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = getToken();
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...((init.headers as Record<string, string>) ?? {}),
+  let token = getToken();
+  // Public endpoints treat an expired token as anonymous rather than 401, so
+  // refresh ahead of time instead of waiting for a rejection.
+  if (token && tokenExpired(token)) token = await refreshAccessToken();
+
+  const send = (bearer: string | null) => {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      ...((init.headers as Record<string, string>) ?? {}),
+    };
+    if (bearer) headers.Authorization = `Bearer ${bearer}`;
+    return fetch(`${API}${path}`, { ...init, headers, cache: "no-store" });
   };
-  if (token) headers.Authorization = `Bearer ${token}`;
 
   let res: Response;
   try {
-    res = await fetch(`${API}${path}`, { ...init, headers, cache: "no-store" });
+    res = await send(token);
+    if (res.status === 401 && token && !path.startsWith("/v1/auth/")) {
+      const fresh = await refreshAccessToken();
+      if (fresh) res = await send(fresh);
+    }
   } catch {
     throw new ApiError(0, "Cannot reach the API. Check that the backend is running on port 8000.");
   }
@@ -48,7 +106,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new ApiError(res.status, body.detail ?? body.message ?? `Request failed (${res.status}).`);
+    throw new ApiError(res.status, errorMessage(body, res.status));
   }
   return body as T;
 }
