@@ -8,3 +8,5 @@ node_modules/
 dist/
 *.egg-info/
 backend/app/seed/data/*.jsonl
+*.tsbuildinfo
+next-env.d.ts
