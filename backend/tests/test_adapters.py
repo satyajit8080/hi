@@ -79,3 +79,47 @@ def test_bybit_restart_snapshot_u_equals_one():
     ev = b.normalise({"topic": "orderbook.50.BTCUSDT", "type": "delta", "ts": 1,
                       "data": {"s": "BTCUSDT", "b": [], "a": [], "u": 1, "seq": 1}})
     assert ev[0].kind == "book_snapshot"
+
+
+def _replay_dataset(tmp_path, quotes):
+    """A bundled book centred far from the stream, as the generator writes it."""
+    import json
+    (tmp_path / "book_BTCUSDT.json").write_text(json.dumps({
+        "last_update_id": 3_892_660_055,
+        "bids": [[59000.0 - i, 1.0] for i in range(10)],
+        "asks": [[59001.0 + i, 1.0] for i in range(10)],
+    }))
+    uid = 9_956_338_661
+    with (tmp_path / "events.jsonl").open("w") as fh:
+        for i, (bid, ask) in enumerate(quotes):
+            uid += 3                                  # the generator skips ids
+            fh.write(json.dumps({"kind": "book_diff", "symbol": "BTCUSDT", "ts_ms": 1000 + i,
+                                 "payload": {"first_update_id": uid, "final_update_id": uid,
+                                             "prev_update_id": uid - 1,
+                                             "bids": [[bid, 1.0]], "asks": [[ask, 1.0]]}}) + "\n")
+
+
+async def test_replay_diffs_chain_onto_snapshot_and_never_cross(tmp_path):
+    from app.market.adapters.replay import ReplayAdapter
+    from app.market.orderbook import DepthUpdate, LocalOrderBook
+
+    # Price walks up 600 then back down, past every level the book started with.
+    path = [65000.0 + 10 * i for i in range(60)] + [65600.0 - 10 * i for i in range(60)]
+    _replay_dataset(tmp_path, [(p - 1, p + 1) for p in path])
+
+    for strict in (False, True):
+        a = ReplayAdapter(["BTCUSDT"], speed=1e9, data_dir=tmp_path, loop_forever=False)
+        book = LocalOrderBook("BTCUSDT", "binance", is_futures=strict)
+        snap = await a.fetch_book_snapshot("BTCUSDT")
+        book.apply_snapshot(snap.payload["bids"], snap.payload["asks"], snap.payload["last_update_id"])
+        mid = (book.snapshot().bids[0][0] + book.snapshot().asks[0][0]) / 2
+        assert abs(mid - 65000.0) < 5                 # snapshot sits at the stream's price
+
+        async for ev in a.stream():
+            if ev.kind != "book_diff":
+                continue
+            p = ev.payload
+            book.apply(DepthUpdate(p["first_update_id"], p["final_update_id"], p["prev_update_id"],
+                                   p["bids"], p["asks"], ev.ts_ms))
+            assert not book.snapshot().is_crossed()
+        assert book.synced and book.resync_count == 0
