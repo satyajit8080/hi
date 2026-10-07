@@ -7,5 +7,5 @@ node_modules/
 .next/
 dist/
 *.egg-info/
-backend/app/seed/data/*.jsonl
+backend/app/seed/data/
 next-env.d.ts
