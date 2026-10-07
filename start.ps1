@@ -9,6 +9,8 @@
 
 .EXAMPLE
     .\start.ps1             # start (or restart) everything
+    .\start.ps1 -Live       # switch to real exchange data and start
+    .\start.ps1 -Simulated  # switch back to the simulated dataset and start
     .\start.ps1 -Logs       # start, then follow the logs
     .\start.ps1 -Stop       # stop everything, keep the database
     .\start.ps1 -Reset      # stop and delete the database volume
@@ -18,6 +20,8 @@ param(
     [switch]$Reset,
     [switch]$Logs,
     [switch]$NoBrowser,
+    [switch]$Live,
+    [switch]$Simulated,
     [int]$Days = 120
 )
 
@@ -57,7 +61,26 @@ if (-not (Test-Path '.env')) {
     Write-Host 'Created .env from .env.example.'
 }
 
-if (-not (Test-Path 'backend/app/seed/data/events.jsonl')) {
+if ($Live -and $Simulated) { throw 'Pick one of -Live or -Simulated.' }
+
+# The mode is stored in .env, so a later plain .\start.ps1 keeps it.
+# .NET file calls keep .env's UTF-8 intact on Windows PowerShell 5.1.
+$envPath = Join-Path $PSScriptRoot '.env'
+$envText = [IO.File]::ReadAllText($envPath)
+if ($Live -or $Simulated) {
+    $want = if ($Live) { 'live' } else { 'replay' }
+    if ($envText -match '(?m)^SP_MARKET_MODE=') {
+        $envText = $envText -replace '(?m)^SP_MARKET_MODE=[^\r\n]*', "SP_MARKET_MODE=$want"
+    } else {
+        $envText = $envText.TrimEnd() + "`nSP_MARKET_MODE=$want`n"
+    }
+    [IO.File]::WriteAllText($envPath, $envText, (New-Object Text.UTF8Encoding $false))
+}
+$mode = 'replay'
+if ($envText -match '(?m)^SP_MARKET_MODE=\s*(\w+)') { $mode = $Matches[1].ToLower() }
+Write-Host "Market data: $(if ($mode -eq 'live') { 'LIVE exchange feeds' } else { 'simulated replay dataset' })"
+
+if ($mode -ne 'live' -and -not (Test-Path 'backend/app/seed/data/events.jsonl')) {
     Write-Host "Generating the simulated replay dataset ($Days days, about 40 MB)..."
     Invoke-Compose run --rm api python -m app.seed.generate_replay --days $Days --seed 7
 }

@@ -45,6 +45,8 @@ It creates `.env`, generates the simulated dataset on first run, builds and star
 waits for the API and opens http://localhost:3000. Other switches:
 
 ```powershell
+.\start.ps1 -Live      # switch to real exchange data (no API keys needed)
+.\start.ps1 -Simulated # switch back to the simulated dataset
 .\start.ps1 -Logs      # start, then follow the logs
 .\start.ps1 -Stop      # stop everything, keep the database
 .\start.ps1 -Reset     # stop and delete the database
