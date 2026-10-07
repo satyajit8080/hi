@@ -8,3 +8,4 @@ node_modules/
 dist/
 *.egg-info/
 backend/app/seed/data/*.jsonl
+next-env.d.ts
