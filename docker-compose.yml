@@ -32,6 +32,9 @@ services:
     env_file: [.env]
     environment:
       SP_ROLE: api
+      # Docker Desktop on Windows does not forward file-change events from the
+      # host into containers, so --reload has to poll there. start.ps1 sets it.
+      WATCHFILES_FORCE_POLLING: ${SP_FORCE_POLLING:-false}
     depends_on:
       db: {condition: service_healthy}
       redis: {condition: service_healthy}
@@ -74,6 +77,8 @@ services:
   web:
     build: ./frontend
     env_file: [.env]
+    environment:
+      WATCHPACK_POLLING: ${SP_FORCE_POLLING:-false}
     depends_on:
       api: {condition: service_started}
     ports: ["3000:3000"]

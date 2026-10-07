@@ -32,6 +32,40 @@ docker compose up
 Signals begin appearing within a couple of engine cycles (60s each). Everything is labelled
 **Simulated data** because `SP_MARKET_MODE=replay` is the default.
 
+### Windows
+
+Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) (the default WSL 2
+backend is fine), start it, then from PowerShell in the repository folder:
+
+```powershell
+.\start.ps1
+```
+
+It creates `.env`, generates the simulated dataset on first run, builds and starts every service,
+waits for the API and opens http://localhost:3000. Other switches:
+
+```powershell
+.\start.ps1 -Logs      # start, then follow the logs
+.\start.ps1 -Stop      # stop everything, keep the database
+.\start.ps1 -Reset     # stop and delete the database
+```
+
+If PowerShell refuses to run the script, allow local scripts for your user once:
+`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
+
+Notes:
+
+- The script turns on polling file watchers (`SP_FORCE_POLLING=true`), because Docker Desktop does
+  not pass file-change events from Windows folders into containers. Without it, edits to
+  `backend/` and `frontend/` would not hot-reload.
+- `.gitattributes` keeps files at LF line endings so they work inside the Linux containers. If
+  you cloned before it existed, commit or stash your work, then run
+  `git rm -r --cached . -q; git reset --hard` once to renormalise (it discards uncommitted changes).
+- Port 5432 clashes with a locally installed PostgreSQL. Stop that service, or change the
+  left-hand port of `db` in `docker-compose.yml`.
+- In Windows PowerShell 5.1, `curl` is an alias for `Invoke-WebRequest`. Use `curl.exe` for the
+  examples under "Verifying the record".
+
 ### Running without Docker
 
 ```bash

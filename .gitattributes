@@ -1,0 +1,14 @@
+# Most of this repo runs inside Linux containers, even on Windows, so check
+# files out with LF endings whatever core.autocrlf says. A CRLF in a shell
+# script or Dockerfile breaks it inside the container.
+* text=auto eol=lf
+
+# Windows-only launchers keep CRLF.
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff binary
+*.woff2 binary
